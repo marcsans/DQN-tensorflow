@@ -61,6 +61,7 @@ def main(_):
       agent.train()
     else:
       agent.play()
+    agent.save_weight_to_pkl()
 
 if __name__ == '__main__':
   tf.app.run()
