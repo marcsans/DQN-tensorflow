@@ -1,22 +1,25 @@
-import tensorflow as tf
-import time
+import os
 import random
+import time
+
+import tensorflow as tf
 from tqdm import tqdm
 
 from agent import Agent
+from dqn.utils import load_pkl
 from .history import History
-from .ops import clipped_error, conv2d, linear
+from .ops import conv2d, linear
 from .replay_memory import ReplayMemory
-
 
 
 class AMN(Agent):
     def __init__(self, config, environment, sess):
         super(Agent, self).__init__(config)
         self.sess = sess
-        self.weight_dir = 'weights'
-        self.weight_e1_dir = 'weights_breakout'
-        self.weight_e2_dir = 'weights_pong'
+        self.weight_dir = {}
+        self.weight_dir["AMN"] = 'weights'
+        self.weight_e1_dir["Expert1"] = 'weights_breakout'
+        self.weight_e2_dir["Expert2"] = 'weights_pong'
 
         self.env1 = environment
         self.env2 = environment
@@ -36,7 +39,7 @@ class AMN(Agent):
         start_time = time.time()
 
         num_game1, num_game2, self.update_count, ep_reward = 0, 0, 0, 0.
-        total_reward1, total_reward2, self.total_loss1,  self.total_loss2, self.total_q = 0., 0., 0., 0., 0.
+        total_reward1, total_reward2, self.total_loss1, self.total_loss2, self.total_q = 0., 0., 0., 0., 0.
         ep_rewards1, actions1, ep_rewards2, actions2 = [], [], [], []
 
         screen1, reward1, action1, terminal1 = self.env1.new_random_game()
@@ -120,22 +123,22 @@ class AMN(Agent):
             #                 'training.learning_rate': self.learning_rate_op.eval({self.learning_rate_step: self.step}),
             #             }, self.step)
 
-                    # num_game1 = 0
-                    # total_reward1 = 0.
-                    # self.total_loss1 = 0.
-                    # self.total_q1 = 0.
-                    # self.update_count1 = 0
-                    # ep_reward1 = 0.
-                    # ep_rewards1 = []
-                    # actions1 = []
-                    # num_game2 = 0
-                    # total_reward2 = 0.
-                    # self.total_loss2 = 0.
-                    # self.total_q2 = 0.
-                    # self.update_count2 = 0
-                    # ep_reward2 = 0.
-                    # ep_rewards2 = []
-                    # actions2 = []
+            # num_game1 = 0
+            # total_reward1 = 0.
+            # self.total_loss1 = 0.
+            # self.total_q1 = 0.
+            # self.update_count1 = 0
+            # ep_reward1 = 0.
+            # ep_rewards1 = []
+            # actions1 = []
+            # num_game2 = 0
+            # total_reward2 = 0.
+            # self.total_loss2 = 0.
+            # self.total_q2 = 0.
+            # self.update_count2 = 0
+            # ep_reward2 = 0.
+            # ep_rewards2 = []
+            # actions2 = []
 
     def build_dqn(self):
 
@@ -151,26 +154,26 @@ class AMN(Agent):
         with tf.variable_scope('Expert1'):
             if self.cnn_format == 'NHWC':
                 self.e1_s_t = tf.placeholder('float32',
-                                          [None, self.screen_height, self.screen_width, self.history_length],
-                                          name='e1_s_t')
+                                             [None, self.screen_height, self.screen_width, self.history_length],
+                                             name='e1_s_t')
             else:
                 self.e1_s_t = tf.placeholder('float32',
-                                          [None, self.history_length, self.screen_height, self.screen_width],
-                                          name='e1_s_t')
+                                             [None, self.history_length, self.screen_height, self.screen_width],
+                                             name='e1_s_t')
 
             self.e1_l1, self.e1_w['l1_w'], self.e1_w['l1_b'] = conv2d(self.s_t,
-                                                             32, [8, 8], [4, 4], initializer, activation_fn,
-                                                             self.cnn_format, name='e1_l1')
+                                                                      32, [8, 8], [4, 4], initializer, activation_fn,
+                                                                      self.cnn_format, name='e1_l1')
             self.e1_l2, self.e1_w['l2_w'], self.e1_w['l2_b'] = conv2d(self.l1,
-                                                             64, [4, 4], [2, 2], initializer, activation_fn,
-                                                             self.cnn_format, name='e1_l2')
+                                                                      64, [4, 4], [2, 2], initializer, activation_fn,
+                                                                      self.cnn_format, name='e1_l2')
             self.e1_l3, self.e1_w['l3_w'], self.e1_w['l3_b'] = conv2d(self.l2,
-                                                             64, [3, 3], [1, 1], initializer, activation_fn,
-                                                             self.cnn_format, name='e1_l3')
+                                                                      64, [3, 3], [1, 1], initializer, activation_fn,
+                                                                      self.cnn_format, name='e1_l3')
             shape = self.e1_l3.get_shape().as_list()
             self.e1_l3_flat = tf.reshape(self.e1_l3, [-1, reduce(lambda x, y: x * y, shape[1:])])
             self.e1_l4, self.e1_w['l4_w'], self.e1_w['l4_b'] = linear(self.e1_l3_flat, 512, activation_fn=activation_fn,
-                                                             name='e1_l4')
+                                                                      name='e1_l4')
             self.e1_q, self.e1_w['q_w'], self.e1_w['q_b'] = linear(self.e1_l4, self.env1.action_size, name='q')
             self.e1_action = tf.argmax(self.q, dimension=1)
 
@@ -184,27 +187,30 @@ class AMN(Agent):
         with tf.variable_scope('Expert2'):
             if self.cnn_format == 'NHWC':
                 self.e2_s_t = tf.placeholder('float32',
-                                          [None, self.screen_height, self.screen_width, self.history_length],
-                                          name='e2_s_t')
+                                             [None, self.screen_height, self.screen_width, self.history_length],
+                                             name='e2_s_t')
             else:
                 self.e2_s_t = tf.placeholder('float32',
-                                          [None, self.history_length, self.screen_height, self.screen_width],
-                                          name='e2_s_t')
+                                             [None, self.history_length, self.screen_height, self.screen_width],
+                                             name='e2_s_t')
 
-            self.e2_l1, self.e2_w['l1_w'], self.e2_w['l1_b'] = conv2d(self.s_t,
-                                                             32, [8, 8], [4, 4], initializer, activation_fn,
-                                                             self.cnn_format, name='e2_l1')
+            self.e2_l1, self.e2_w['e2_l1_w'], self.e2_w['e2_l1_b'] = conv2d(self.s_t,
+                                                                            32, [8, 8], [4, 4], initializer,
+                                                                            activation_fn,
+                                                                            self.cnn_format, name='e2_l1')
             self.e2_l2, self.e2_w['l2_w'], self.e2_w['l2_b'] = conv2d(self.l1,
-                                                             64, [4, 4], [2, 2], initializer, activation_fn,
-                                                             self.cnn_format, name='e2_l2')
-            self.e2_l3, self.e2_w['l3_w'], self.e2_w['l3_b'] = conv2d(self.l2,
-                                                             64, [3, 3], [1, 1], initializer, activation_fn,
-                                                             self.cnn_format, name='e2_l3')
+                                                                      64, [4, 4], [2, 2], initializer, activation_fn,
+                                                                      self.cnn_format, name='e2_l2')
+            self.e2_l3, self.e2_w['e2_l3_w'], self.e2_w['e2_l3_b'] = conv2d(self.l2,
+                                                                            64, [3, 3], [1, 1], initializer,
+                                                                            activation_fn,
+                                                                            self.cnn_format, name='e2_l3')
             shape = self.e2_l3.get_shape().as_list()
             self.e2_l3_flat = tf.reshape(self.e2_l3, [-1, reduce(lambda x, y: x * y, shape[1:])])
-            self.e2_l4, self.e2_w['l4_w'], self.e2_w['l4_b'] = linear(self.e2_l3_flat, 512, activation_fn=activation_fn,
-                                                             name='e2_l4')
-            self.e2_q, self.e2_w['q_w'], self.e2_w['q_b'] = linear(self.e2_l4, self.env2.action_size, name='q')
+            self.e2_l4, self.e2_w['e2_l4_w'], self.e2_w['e2_l4_b'] = linear(self.e2_l3_flat, 512,
+                                                                            activation_fn=activation_fn,
+                                                                            name='e2_l4')
+            self.e2_q, self.e2_w['e2_q_w'], self.e2_w['e2_q_b'] = linear(self.e2_l4, self.env2.action_size, name='q')
             self.e2_action = tf.argmax(self.q, dimension=1)
 
             # q_summary = []
@@ -257,14 +263,16 @@ class AMN(Agent):
 
         # optimizer
         with tf.variable_scope('optimizer'):
+            self.action1 = tf.placeholder('int64', [None], name='action1')
+            self.action2 = tf.placeholder('int64', [None], name='action2')
+
             self.preoutput1 = tf.placeholder('float32', self.e1_l4.shape, name='preoutput1')
             self.preoutput2 = tf.placeholder('float32', self.e2_l4.shape, name='preoutput2')
 
             self.global_step = tf.Variable(0, trainable=False)
 
-            self.loss = tf.add(tf.reduce_mean(tf.square(tf.substract(self.e1_l4,self.preoutput1))),tf.reduce_mean(tf.square(tf.substract(self.e2_l4,self.preoutput2))))
-
-
+            self.loss = tf.reduce_mean(tf.square(self.e1_l4 - self.preoutput1)) + tf.reduce_mean(
+                    tf.square(self.e2_l4 - self.preoutput2))
 
             self.learning_rate_step = tf.placeholder('int64', None, name='learning_rate_step')
             self.learning_rate_op = tf.maximum(self.learning_rate_minimum,
@@ -277,13 +285,13 @@ class AMN(Agent):
             self.optim = tf.train.RMSPropOptimizer(
                     self.learning_rate_op, momentum=0.95, epsilon=0.01).minimize(self.loss)
 
-        # with tf.variable_scope('summary'):
-        #     scalar_summary_tags = ['average.reward', 'average.loss', 'average.q',\
-        #                            'episode.max reward', 'episode.min reward', 'episode.avg reward',
-        #                            'episode.num of game', 'training.learning_rate']
-        #
-        #     self.summary_placeholders = {}
-        #     self.summary_ops = {}
+            # with tf.variable_scope('summary'):
+            #     scalar_summary_tags = ['average.reward', 'average.loss', 'average.q',\
+            #                            'episode.max reward', 'episode.min reward', 'episode.avg reward',
+            #                            'episode.num of game', 'training.learning_rate']
+            #
+            #     self.summary_placeholders = {}
+            #     self.summary_ops = {}
 
             # for tag in scalar_summary_tags:
             #     self.summary_placeholders[tag] = tf.placeholder('float32', None, name=tag.replace(' ', '_'))
@@ -302,8 +310,8 @@ class AMN(Agent):
 
         self._saver = tf.train.Saver(self.w.values() + [self.step_op], max_to_keep=30)
 
-        # self.load_model()
-
+        self.load_model()
+        self.update_target_q_network()
 
     def predict1(self, s_t, test_ep=None):
         ep = test_ep or (self.ep_end +
@@ -315,7 +323,6 @@ class AMN(Agent):
             action = self.q_action.eval({self.s_t: [s_t]})[0]
         return action
 
-
     def predict2(self, s_t, test_ep=None):
         ep = test_ep or (self.ep_end +
                          max(0., (self.ep_start - self.ep_end)
@@ -325,7 +332,6 @@ class AMN(Agent):
         else:
             action = self.q_action.eval({self.s_t: [s_t]})[0]
         return action
-
 
     def observe(self, screen, reward, action, terminal):
         reward = max(self.min_reward, min(self.max_reward, reward))
@@ -339,3 +345,28 @@ class AMN(Agent):
 
             if self.step % self.target_q_update_step == self.target_q_update_step - 1:
                 self.update_target_q_network()
+
+    def load_experts_weights_from_pkl(self, cpu_mode=False):
+        with tf.variable_scope('load_expert1_from_pkl'):
+            self.w_input = {}
+            self.w_assign_op = {}
+
+            for name in self.e1_w.keys():
+                self.w_input[name] = tf.placeholder('float32', self.w[name].get_shape().as_list(), name=name)
+                self.w_assign_op[name] = self.w[name].assign(self.w_input[name])
+
+        for name in self.e1_w.keys():
+            self.w_assign_op[name].eval(
+                    {self.w_input[name]: load_pkl(os.path.join(self.weight_dir['Expert1'], "%s.pkl" % name))})
+
+        with tf.variable_scope('load_expert2_from_pkl'):
+            self.w_input = {}
+            self.w_assign_op = {}
+
+            for name in self.e2_w.keys():
+                self.w_input[name] = tf.placeholder('float32', self.w[name].get_shape().as_list(), name=name)
+                self.w_assign_op[name] = self.w[name].assign(self.w_input[name])
+
+        for name in self.e2_w.keys():
+            self.w_assign_op[name].eval(
+                    {self.w_input[name]: load_pkl(os.path.join(self.weight_dir['Expert2'], "%s.pkl" % name))})
