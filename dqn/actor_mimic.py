@@ -25,6 +25,7 @@ class AMN(Agent):
         self.build_dqn()
 
     def build_dqn(self):
+
         self.w = {}
         self.t_w = {}
 

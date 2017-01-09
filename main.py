@@ -1,19 +1,20 @@
 import random
+
 import tensorflow as tf
 
+from config import get_config
 from dqn.agent import Agent
 from dqn.environment import GymEnvironment, SimpleGymEnvironment
-from config import get_config
 
 flags = tf.app.flags
 
 # Model
 flags.DEFINE_string('model', 'm1', 'Type of model')
-flags.DEFINE_boolean('dueling', False, 'Whether to use dueling deep q-network')
+flags.DEFINE_boolean('dueling', True, 'Whether to use dueling deep q-network')
 flags.DEFINE_boolean('double_q', False, 'Whether to use double q-learning')
 
 # Environment
-flags.DEFINE_string('env_name', 'Breakout-v0', 'The name of gym environment to use')
+flags.DEFINE_string('env_name', 'Pong-v0', 'The name of gym environment to use')
 flags.DEFINE_integer('action_repeat', 4, 'The number of action to be repeated')
 
 # Etc
@@ -30,38 +31,41 @@ tf.set_random_seed(FLAGS.random_seed)
 random.seed(FLAGS.random_seed)
 
 if FLAGS.gpu_fraction == '':
-  raise ValueError("--gpu_fraction should be defined")
+    raise ValueError("--gpu_fraction should be defined")
+
 
 def calc_gpu_fraction(fraction_string):
-  idx, num = fraction_string.split('/')
-  idx, num = float(idx), float(num)
+    idx, num = fraction_string.split('/')
+    idx, num = float(idx), float(num)
 
-  fraction = 1 / (num - idx + 1)
-  print " [*] GPU : %.4f" % fraction
-  return fraction
+    fraction = 1 / (num - idx + 1)
+    print " [*] GPU : %.4f" % fraction
+    return fraction
+
 
 def main(_):
-  gpu_options = tf.GPUOptions(
-      per_process_gpu_memory_fraction=calc_gpu_fraction(FLAGS.gpu_fraction))
+    gpu_options = tf.GPUOptions(
+            per_process_gpu_memory_fraction=calc_gpu_fraction(FLAGS.gpu_fraction))
 
-  with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
-    config = get_config(FLAGS) or FLAGS
+    with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
+        config = get_config(FLAGS) or FLAGS
 
-    if config.env_type == 'simple':
-      env = SimpleGymEnvironment(config)
-    else:
-      env = GymEnvironment(config)
+        if config.env_type == 'simple':
+            env = SimpleGymEnvironment(config)
+        else:
+            env = GymEnvironment(config)
 
-    if not FLAGS.use_gpu:
-      config.cnn_format = 'NHWC'
+        if not FLAGS.use_gpu:
+            config.cnn_format = 'NHWC'
 
-    agent = Agent(config, env, sess)
+        agent = Agent(config, env, sess)
 
-    if FLAGS.is_train:
-      agent.train()
-    else:
-      agent.play()
-    agent.save_weight_to_pkl()
+        if FLAGS.is_train:
+            agent.train()
+        else:
+            agent.play()
+        agent.save_weight_to_pkl()
+
 
 if __name__ == '__main__':
-  tf.app.run()
+    tf.app.run()

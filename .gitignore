@@ -1,10 +1,11 @@
 # misc
 logs
+assets/
 .DS_Store
-
+.idea/
 # data
 samples
-*checkpoints/
+checkpoints/
 *.npy
 *.pkl
 *.tgz

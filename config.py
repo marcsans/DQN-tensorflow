@@ -1,8 +1,8 @@
 class AgentConfig(object):
-  scale = 10000
+  scale = 1000
   display = False
 
-  max_step = 5000 * scale
+  max_step = 2000 * scale
   memory_size = 100 * scale
 
   batch_size = 32
@@ -33,7 +33,7 @@ class AgentConfig(object):
   _save_step = _test_step * 10
 
 class EnvironmentConfig(object):
-  env_name = 'Breakout-v0'
+  env_name = 'Pong-v0'
 
   screen_width  = 84
   screen_height = 84

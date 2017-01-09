@@ -51,6 +51,7 @@ class Agent(BaseModel):
       # 1. predict
       action = self.predict(self.history.get())
       # 2. act
+      #TODO : Change self.env to self.env[np.random_int(len(envs))
       screen, reward, terminal = self.env.act(action, is_training=True)
       # 3. observe
       self.observe(screen, reward, action, terminal)

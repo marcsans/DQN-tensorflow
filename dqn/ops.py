@@ -51,3 +51,10 @@ def linear(input_, output_size, stddev=0.02, bias_start=0.0, activation_fn=None,
       return activation_fn(out), w, b
     else:
       return out, w, b
+
+
+def feature_regression_loss(AMN, expert):
+    return # square euclidean dist of AMN and expert preoutput layers
+
+def policy_loss(AMN, expert):
+    return # tf.nn.softmax_cross_entropy(output[AMN], expert.policy)
