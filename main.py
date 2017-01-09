@@ -10,8 +10,9 @@ flags = tf.app.flags
 
 # Model
 flags.DEFINE_string('model', 'm1', 'Type of model')
-flags.DEFINE_boolean('dueling', True, 'Whether to use dueling deep q-network')
-flags.DEFINE_boolean('double_q', False, 'Whether to use double q-learning')
+flags.DEFINE_boolean('dueling', False, 'Whether to use dueling deep q-network')
+flags.DEFINE_boolean('double_q', True, 'Whether to use double q-learning')
+flags.DEFINE_boolean('actor_mimic', False, "whether to train an actor-mimic network")
 
 # Environment
 flags.DEFINE_string('env_name', 'Pong-v0', 'The name of gym environment to use')
@@ -23,6 +24,12 @@ flags.DEFINE_string('gpu_fraction', '1/1', 'idx / # of gpu fraction e.g. 1/3, 2/
 flags.DEFINE_boolean('display', False, 'Whether to do display the game screen or not')
 flags.DEFINE_boolean('is_train', True, 'Whether to do training or testing')
 flags.DEFINE_integer('random_seed', 123, 'Value of random seed')
+
+FLAGS = flags.FLAGS
+if FLAGS.actor_mimic:
+    flags.DEFINE_string('env_name_1', 'Pong-v0', 'The name of gym environment to use for first expert')
+    flags.DEFINE_string('env_name_2', 'Breakout-v0', 'The name of gym environment to use for second expert')
+
 
 FLAGS = flags.FLAGS
 
