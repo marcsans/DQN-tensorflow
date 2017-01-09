@@ -1,5 +1,6 @@
 import tensorflow as tf
 import time
+import random
 from tqdm import tqdm
 
 from agent import Agent
@@ -34,10 +35,10 @@ class AMN(Agent):
         start_step = self.step_op.eval()
         start_time = time.time()
 
-        num_game, self.update_count, ep_reward = 0, 0, 0.
-        total_reward, self.total_loss, self.total_q = 0., 0., 0.
+        num_game1, num_game2, self.update_count, ep_reward = 0, 0, 0, 0.
+        total_reward1, total_reward2, self.total_loss1,  self.total_loss2, self.total_q = 0., 0., 0., 0., 0.
         max_avg_ep_reward = 0
-        ep_rewards, actions = [], []
+        ep_rewards1, actions1, ep_rewards2, actions2 = [], [], [], []
 
         screen1, reward1, action1, terminal1 = self.env1.new_random_game()
         screen2, reward2, action2, terminal2 = self.env2.new_random_game()
@@ -53,69 +54,89 @@ class AMN(Agent):
                 ep_rewards, actions = [], []
 
             # 1. predict
-            action = self.predict(self.history.get())
+            action1 = self.predict1(self.history1.get())
+            action2 = self.predict2(self.history2.get())
             # 2. act
             # TODO : Change self.env to self.env[np.random_int(len(envs))
-            screen, reward, terminal = self.env.act(action, is_training=True)
+            screen1, reward1, terminal1 = self.env1.act(action1, is_training=True)
+            screen2, reward2, terminal2 = self.env2.act(action2, is_training=True)
             # 3. observe
-            self.observe(screen, reward, action, terminal)
+            self.observe1(screen1, reward1, action1, terminal1)
+            self.observe2(screen2, reward2, action2, terminal2)
 
-            if terminal:
-                screen, reward, action, terminal = self.env.new_random_game()
-
-                num_game += 1
-                ep_rewards.append(ep_reward)
-                ep_reward = 0.
+            if terminal1:
+                screen1, reward1, action1, terminal1 = self.env1.new_random_game()
+                num_game1 += 1
+                ep_rewards1.append(ep_reward1)
+                ep_reward1 = 0.
             else:
-                ep_reward += reward
+                ep_reward1 += reward1
 
-            actions.append(action)
-            total_reward += reward
+            if terminal2:
+                screen2, reward2, action2, terminal2 = self.env2.new_random_game()
+                num_game2 += 1
+                ep_rewards2.append(ep_reward2)
+                ep_reward2 = 0.
+            else:
+                ep_reward2 += reward2
 
-            if self.step >= self.learn_start:
-                if self.step % self.test_step == self.test_step - 1:
-                    avg_reward = total_reward / self.test_step
-                    avg_loss = self.total_loss / self.update_count
-                    avg_q = self.total_q / self.update_count
+            actions1.append(action1)
+            actions2.append(action2)
+            total_reward1 += reward1
+            total_reward2 += reward2
 
-                    try:
-                        max_ep_reward = np.max(ep_rewards)
-                        min_ep_reward = np.min(ep_rewards)
-                        avg_ep_reward = np.mean(ep_rewards)
-                    except:
-                        max_ep_reward, min_ep_reward, avg_ep_reward = 0, 0, 0
+            # if self.step >= self.learn_start:
+            #     if self.step % self.test_step == self.test_step - 1:
+            #         avg_reward1 = total_reward1 / self.test_step
+            #         avg_loss1 = self.total_loss1 / self.update_count
+            #         avg_q1 = self.total_q1 / self.update_count
+            #
+            #         try:
+            #             max_ep_reward1 = np.max(ep_rewards1)
+            #             min_ep_reward1 = np.min(ep_rewards1)
+            #             avg_ep_reward1 = np.mean(ep_rewards1)
+            #         except:
+            #             max_ep_reward1, min_ep_reward1, avg_ep_reward1 = 0, 0, 0
+            #
+            #         print '\n1 avg_r: %.4f, avg_l: %.6f, avg_q: %3.6f, avg_ep_r: %.4f, max_ep_r: %.4f, min_ep_r: %.4f, # game: %d' \
+            #               % (avg_reward1, avg_loss1, avg_q1, avg_ep_reward1, max_ep_reward1, min_ep_reward1, num_game1)
+            #
+            #         if max_avg_ep_reward * 0.9 <= avg_ep_reward1:
+            #             self.step_assign_op.eval({self.step_input: self.step + 1})
+            #             self.save_model(self.step + 1)
+            #
+            #             max_avg_ep_reward = max(max_avg_ep_reward, avg_ep_reward)
+            #
+            #         if self.step > 180:
+            #             self.inject_summary({
+            #                 'average.reward': avg_reward,
+            #                 'average.loss': avg_loss,
+            #                 'average.q': avg_q,
+            #                 'episode.max reward': max_ep_reward,
+            #                 'episode.min reward': min_ep_reward,
+            #                 'episode.avg reward': avg_ep_reward,
+            #                 'episode.num of game': num_game,
+            #                 'episode.rewards': ep_rewards,
+            #                 'episode.actions': actions,
+            #                 'training.learning_rate': self.learning_rate_op.eval({self.learning_rate_step: self.step}),
+            #             }, self.step)
 
-                    print '\navg_r: %.4f, avg_l: %.6f, avg_q: %3.6f, avg_ep_r: %.4f, max_ep_r: %.4f, min_ep_r: %.4f, # game: %d' \
-                          % (avg_reward, avg_loss, avg_q, avg_ep_reward, max_ep_reward, min_ep_reward, num_game)
-
-                    if max_avg_ep_reward * 0.9 <= avg_ep_reward:
-                        self.step_assign_op.eval({self.step_input: self.step + 1})
-                        self.save_model(self.step + 1)
-
-                        max_avg_ep_reward = max(max_avg_ep_reward, avg_ep_reward)
-
-                    if self.step > 180:
-                        self.inject_summary({
-                            'average.reward': avg_reward,
-                            'average.loss': avg_loss,
-                            'average.q': avg_q,
-                            'episode.max reward': max_ep_reward,
-                            'episode.min reward': min_ep_reward,
-                            'episode.avg reward': avg_ep_reward,
-                            'episode.num of game': num_game,
-                            'episode.rewards': ep_rewards,
-                            'episode.actions': actions,
-                            'training.learning_rate': self.learning_rate_op.eval({self.learning_rate_step: self.step}),
-                        }, self.step)
-
-                    num_game = 0
-                    total_reward = 0.
-                    self.total_loss = 0.
-                    self.total_q = 0.
-                    self.update_count = 0
-                    ep_reward = 0.
-                    ep_rewards = []
-                    actions = []
+                    # num_game1 = 0
+                    # total_reward1 = 0.
+                    # self.total_loss1 = 0.
+                    # self.total_q1 = 0.
+                    # self.update_count1 = 0
+                    # ep_reward1 = 0.
+                    # ep_rewards1 = []
+                    # actions1 = []
+                    # num_game2 = 0
+                    # total_reward2 = 0.
+                    # self.total_loss2 = 0.
+                    # self.total_q2 = 0.
+                    # self.update_count2 = 0
+                    # ep_reward2 = 0.
+                    # ep_rewards2 = []
+                    # actions2 = []
 
     def build_dqn(self):
 
@@ -150,14 +171,14 @@ class AMN(Agent):
             self.e1_l3_flat = tf.reshape(self.e1_l3, [-1, reduce(lambda x, y: x * y, shape[1:])])
             self.e1_l4, self.e1_w['e1_l4_w'], self.e1_w['e1_l4_b'] = linear(self.e1_l3_flat, 512, activation_fn=activation_fn,
                                                              name='e1_l4')
-            self.e1_q, self.e1_w['e1_q_w'], self.e1_w['e1_q_b'] = linear(self.e1_l4, self.env.action_size, name='q')
+            self.e1_q, self.e1_w['e1_q_w'], self.e1_w['e1_q_b'] = linear(self.e1_l4, self.env1.action_size, name='q')
             self.e1_action = tf.argmax(self.q, dimension=1)
 
-            q_summary = []
-            avg_q = tf.reduce_mean(self.q, 0)
-            for idx in xrange(self.env.action_size):
-                q_summary.append(tf.summary.histogram('q/%s' % idx, avg_q[idx]))
-            self.q_summary = tf.summary.merge(q_summary, 'q_summary')
+            # q_summary = []
+            # avg_q = tf.reduce_mean(self.q, 0)
+            # for idx in xrange(self.env.action_size):
+            #     q_summary.append(tf.summary.histogram('q/%s' % idx, avg_q[idx]))
+            # self.q_summary = tf.summary.merge(q_summary, 'q_summary')
 
         # expert2 network
         with tf.variable_scope('Expert1'):
@@ -183,14 +204,14 @@ class AMN(Agent):
             self.e2_l3_flat = tf.reshape(self.e2_l3, [-1, reduce(lambda x, y: x * y, shape[1:])])
             self.e2_l4, self.e2_w['e2_l4_w'], self.e2_w['e2_l4_b'] = linear(self.e2_l3_flat, 512, activation_fn=activation_fn,
                                                              name='e2_l4')
-            self.e2_q, self.e2_w['e2_q_w'], self.e2_w['e2_q_b'] = linear(self.e2_l4, self.env.action_size, name='q')
+            self.e2_q, self.e2_w['e2_q_w'], self.e2_w['e2_q_b'] = linear(self.e2_l4, self.env2.action_size, name='q')
             self.e2_action = tf.argmax(self.q, dimension=1)
 
-            q_summary = []
-            avg_q = tf.reduce_mean(self.q, 0)
-            for idx in xrange(self.env.action_size):
-                q_summary.append(tf.summary.histogram('q/%s' % idx, avg_q[idx]))
-            self.q_summary = tf.summary.merge(q_summary, 'q_summary')
+            # q_summary = []
+            # avg_q = tf.reduce_mean(self.q, 0)
+            # for idx in xrange(self.env.action_size):
+            #     q_summary.append(tf.summary.histogram('q/%s' % idx, avg_q[idx]))
+            # self.q_summary = tf.summary.merge(q_summary, 'q_summary')
 
         # training network
         with tf.variable_scope('prediction'):
@@ -219,61 +240,33 @@ class AMN(Agent):
                                                              name='l4')
             self.q, self.w['q_w'], self.w['q_b'] = linear(self.l4, self.env.action_size, name='q')
             self.q_action = tf.argmax(self.q, dimension=1)
-            q_summary = []
-            avg_q = tf.reduce_mean(self.q, 0)
-            for idx in xrange(self.env.action_size):
-                q_summary.append(tf.summary.histogram('q/%s' % idx, avg_q[idx]))
-            self.q_summary = tf.summary.merge(q_summary, 'q_summary')
 
-        # target network
-        with tf.variable_scope('target'):
-            if self.cnn_format == 'NHWC':
-                self.target_s_t = tf.placeholder('float32',
-                                                 [None, self.screen_height, self.screen_width, self.history_length],
-                                                 name='target_s_t')
-            else:
-                self.target_s_t = tf.placeholder('float32',
-                                                 [None, self.history_length, self.screen_height, self.screen_width],
-                                                 name='target_s_t')
-            self.target_l1, self.t_w['l1_w'], self.t_w['l1_b'] = conv2d(self.target_s_t,
-                                                                        32, [8, 8], [4, 4], initializer, activation_fn,
-                                                                        self.cnn_format, name='target_l1')
-            self.target_l2, self.t_w['l2_w'], self.t_w['l2_b'] = conv2d(self.target_l1,
-                                                                        64, [4, 4], [2, 2], initializer, activation_fn,
-                                                                        self.cnn_format, name='target_l2')
-            self.target_l3, self.t_w['l3_w'], self.t_w['l3_b'] = conv2d(self.target_l2,
-                                                                        64, [3, 3], [1, 1], initializer, activation_fn,
-                                                                        self.cnn_format, name='target_l3')
-            shape = self.target_l3.get_shape().as_list()
-            self.target_l3_flat = tf.reshape(self.target_l3, [-1, reduce(lambda x, y: x * y, shape[1:])])
-            self.target_l4, self.t_w['l4_w'], self.t_w['l4_b'] =\
-                linear(self.target_l3_flat, 512, activation_fn=activation_fn, name='target_l4')
-            self.target_q, self.t_w['q_w'], self.t_w['q_b'] =\
-                linear(self.target_l4, self.env.action_size, name='target_q')
-            self.target_q_idx = tf.placeholder('int32', [None, None], 'outputs_idx')
-            self.target_q_with_idx = tf.gather_nd(self.target_q, self.target_q_idx)
+            # q_summary = []
+            # avg_q = tf.reduce_mean(self.q, 0)
+            # for idx in xrange(self.env.action_size):
+            #     q_summary.append(tf.summary.histogram('q/%s' % idx, avg_q[idx]))
+            # self.q_summary = tf.summary.merge(q_summary, 'q_summary')
 
-        with tf.variable_scope('pred_to_target'):
-            self.t_w_input = {}
-            self.t_w_assign_op = {}
-
-            for name in self.w.keys():
-                self.t_w_input[name] = tf.placeholder('float32', self.t_w[name].get_shape().as_list(), name=name)
-                self.t_w_assign_op[name] = self.t_w[name].assign(self.t_w_input[name])
+        # with tf.variable_scope('pred_to_target'):
+        #     self.t_w_input = {}
+        #     self.t_w_assign_op = {}
+        #
+        #     for name in self.w.keys():
+        #         self.t_w_input[name] = tf.placeholder('float32', self.t_w[name].get_shape().as_list(), name=name)
+        #         self.t_w_assign_op[name] = self.t_w[name].assign(self.t_w_input[name])
 
         # optimizer
         with tf.variable_scope('optimizer'):
-            self.target_q_t = tf.placeholder('float32', [None], name='target_q_t')
-            self.action = tf.placeholder('int64', [None], name='action')
+            self.action1 = tf.placeholder('int64', [None], name='action1')
+            self.action2 = tf.placeholder('int64', [None], name='action2')
 
-            action_one_hot = tf.one_hot(self.action, self.env.action_size, 1.0, 0.0, name='action_one_hot')
-            q_acted = tf.reduce_sum(self.q * action_one_hot, reduction_indices=1, name='q_acted')
+            self.preoutput1 = tf.placeholder('float32', self.e1_l4.shape, name='preoutput1')
+            self.preoutput2 = tf.placeholder('float32', self.e2_l4.shape, name='preoutput2')
 
-            self.delta = self.target_q_t - q_acted
 
             self.global_step = tf.Variable(0, trainable=False)
 
-            self.loss = tf.reduce_mean(clipped_error(self.delta), name='loss')
+            self.loss = tf.reduce_mean(tf.square(self.e1_l4-self.preoutput1))+tf.reduce_mean(tf.square(self.e2_l4-self.preoutput2))
 
 
 
@@ -288,26 +281,26 @@ class AMN(Agent):
             self.optim = tf.train.RMSPropOptimizer(
                     self.learning_rate_op, momentum=0.95, epsilon=0.01).minimize(self.loss)
 
-        with tf.variable_scope('summary'):
-            scalar_summary_tags = ['average.reward', 'average.loss', 'average.q',\
-                                   'episode.max reward', 'episode.min reward', 'episode.avg reward',
-                                   'episode.num of game', 'training.learning_rate']
+        # with tf.variable_scope('summary'):
+        #     scalar_summary_tags = ['average.reward', 'average.loss', 'average.q',\
+        #                            'episode.max reward', 'episode.min reward', 'episode.avg reward',
+        #                            'episode.num of game', 'training.learning_rate']
+        #
+        #     self.summary_placeholders = {}
+        #     self.summary_ops = {}
 
-            self.summary_placeholders = {}
-            self.summary_ops = {}
+            # for tag in scalar_summary_tags:
+            #     self.summary_placeholders[tag] = tf.placeholder('float32', None, name=tag.replace(' ', '_'))
+            #     self.summary_ops[tag] = tf.summary.scalar("%s-%s/%s" % (self.env_name, self.env_type, tag),
+            #                                               self.summary_placeholders[tag])
+            #
+            # histogram_summary_tags = ['episode.rewards', 'episode.actions']
 
-            for tag in scalar_summary_tags:
-                self.summary_placeholders[tag] = tf.placeholder('float32', None, name=tag.replace(' ', '_'))
-                self.summary_ops[tag] = tf.summary.scalar("%s-%s/%s" % (self.env_name, self.env_type, tag),
-                                                          self.summary_placeholders[tag])
+            # for tag in histogram_summary_tags:
+            #     self.summary_placeholders[tag] = tf.placeholder('float32', None, name=tag.replace(' ', '_'))
+            #     self.summary_ops[tag] = tf.summary.histogram(tag, self.summary_placeholders[tag])
 
-            histogram_summary_tags = ['episode.rewards', 'episode.actions']
-
-            for tag in histogram_summary_tags:
-                self.summary_placeholders[tag] = tf.placeholder('float32', None, name=tag.replace(' ', '_'))
-                self.summary_ops[tag] = tf.summary.histogram(tag, self.summary_placeholders[tag])
-
-            self.writer = tf.summary.FileWriter('./logs/%s' % self.model_dir, self.sess.graph)
+            # self.writer = tf.summary.FileWriter('./logs/%s' % self.model_dir, self.sess.graph)
 
         tf.initialize_all_variables().run()
 
@@ -316,27 +309,38 @@ class AMN(Agent):
         self.load_model()
         self.update_target_q_network()
 
-  def predict(self, s_t, test_ep=None):
+
+def predict1(self, s_t, test_ep=None):
     ep = test_ep or (self.ep_end +
-        max(0., (self.ep_start - self.ep_end)
-          * (self.ep_end_t - max(0., self.step - self.learn_start)) / self.ep_end_t))
-
+                     max(0., (self.ep_start - self.ep_end)
+                         * (self.ep_end_t - max(0., self.step - self.learn_start)) / self.ep_end_t))
     if random.random() < ep:
-      action = random.randrange(self.env.action_size)
+        action = random.randrange(self.env.action_size)
     else:
-      action = self.q_action.eval({self.s_t: [s_t]})[0]
-
+        action = self.q_action.eval({self.s_t: [s_t]})[0]
     return action
 
-  def observe(self, screen, reward, action, terminal):
+
+def predict2(self, s_t, test_ep=None):
+    ep = test_ep or (self.ep_end +
+                     max(0., (self.ep_start - self.ep_end)
+                         * (self.ep_end_t - max(0., self.step - self.learn_start)) / self.ep_end_t))
+    if random.random() < ep:
+        action = random.randrange(self.env.action_size)
+    else:
+        action = self.q_action.eval({self.s_t: [s_t]})[0]
+    return action
+
+
+def observe(self, screen, reward, action, terminal):
     reward = max(self.min_reward, min(self.max_reward, reward))
 
     self.history.add(screen)
     self.memory.add(screen, reward, action, terminal)
 
     if self.step > self.learn_start:
-      if self.step % self.train_frequency == 0:
-        self.q_learning_mini_batch()
+        if self.step % self.train_frequency == 0:
+            self.q_learning_mini_batch()
 
-      if self.step % self.target_q_update_step == self.target_q_update_step - 1:
-        self.update_target_q_network()
+        if self.step % self.target_q_update_step == self.target_q_update_step - 1:
+            self.update_target_q_network()
